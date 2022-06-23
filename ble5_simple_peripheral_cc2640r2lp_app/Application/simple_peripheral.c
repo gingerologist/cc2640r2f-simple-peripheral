@@ -69,7 +69,6 @@
 /* This Header file contains all BLE API and icall structure definition */
 #include <icall_ble_api.h>
 
-#include <devinfoservice.h>
 #include <simple_gatt_profile.h>
 
 #ifdef USE_RCOSC
@@ -599,7 +598,6 @@ static void SimplePeripheral_init(void)
   // Initialize GATT attributes
   GGS_AddService(GATT_ALL_SERVICES);           // GAP GATT Service
   GATTServApp_AddService(GATT_ALL_SERVICES);   // GATT Service
-  DevInfo_AddService();                        // Device Information Service
   SimpleProfile_AddService(GATT_ALL_SERVICES); // Simple GATT Profile
 
   // Setup the SimpleProfile Characteristic Values
@@ -1023,26 +1021,6 @@ static void SimplePeripheral_processGapMessage(gapEventHdr_t *pMsg)
 
       if(pPkt->hdr.status == SUCCESS)
       {
-        // Store the system ID
-        uint8_t systemId[DEVINFO_SYSTEM_ID_LEN];
-
-        // use 6 bytes of device address for 8 bytes of system ID value
-        systemId[0] = pPkt->devAddr[0];
-        systemId[1] = pPkt->devAddr[1];
-        systemId[2] = pPkt->devAddr[2];
-
-        // set middle bytes to zero
-        systemId[4] = 0x00;
-        systemId[3] = 0x00;
-
-        // shift three bytes up
-        systemId[7] = pPkt->devAddr[5];
-        systemId[6] = pPkt->devAddr[4];
-        systemId[5] = pPkt->devAddr[3];
-
-        // Set Device Info Service Parameter
-        DevInfo_SetParameter(DEVINFO_SYSTEM_ID, DEVINFO_SYSTEM_ID_LEN, systemId);
-
         Log_info0("Initialized");
 
         // Setup and start Advertising
