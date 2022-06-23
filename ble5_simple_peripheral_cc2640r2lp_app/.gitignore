@@ -1,0 +1,15 @@
+# build
+FlashROM_StackLibrary/
+
+# project settings
+.settings/
+
+# when this generated?
+TOOLS/src/
+
+# .config
+# .launches
+
+# for xdc tools
+.xdchelp
+
