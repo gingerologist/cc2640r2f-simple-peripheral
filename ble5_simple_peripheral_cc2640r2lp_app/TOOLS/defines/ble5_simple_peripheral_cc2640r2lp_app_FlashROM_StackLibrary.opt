@@ -18,4 +18,4 @@
 -DTBM_ACTIVE_ITEMS_ONLY
 -DUSE_ICALL
 -Dxdc_runtime_Assert_DISABLE_ALL
--Dxdc_runtime_Log_DISABLE_ALL
+# -Dxdc_runtime_Log_DISABLE_ALL
