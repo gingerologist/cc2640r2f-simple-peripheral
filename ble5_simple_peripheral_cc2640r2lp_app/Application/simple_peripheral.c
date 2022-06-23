@@ -391,9 +391,9 @@ static void SimplePeripheral_passcodeCb(uint8_t *pDeviceAddr, uint16_t connHandl
                                         uint32_t numComparison);
 static void SimplePeripheral_pairStateCb(uint16_t connHandle, uint8_t state,
                                          uint8_t status);
-#endif
 static void SimplePeripheral_processPairState(spPairStateData_t *pPairState);
 static void SimplePeripheral_processPasscode(spPasscodeData_t *pPasscodeData);
+#endif
 static void SimplePeripheral_charValueChangeCB(uint8_t paramId);
 static status_t SimplePeripheral_enqueueMsg(uint8_t event, void *pData);
 static void SimplePeripheral_processCmdCompleteEvt(hciEvt_CmdComplete_t *pMsg);
@@ -956,6 +956,7 @@ static void SimplePeripheral_processAppMsg(spEvt_t *pMsg)
       SimplePeripheral_processAdvEvent((spGapAdvEventData_t*)(pMsg->pData));
       break;
 
+#ifdef GAP_BOND_MGR
     case SP_PAIR_STATE_EVT:
       SimplePeripheral_processPairState((spPairStateData_t*)(pMsg->pData));
       break;
@@ -963,6 +964,7 @@ static void SimplePeripheral_processAppMsg(spEvt_t *pMsg)
     case SP_PASSCODE_EVT:
       SimplePeripheral_processPasscode((spPasscodeData_t*)(pMsg->pData));
       break;
+#endif
 
     case SP_PERIODIC_EVT:
       SimplePeripheral_performPeriodicTask();
@@ -1565,7 +1567,6 @@ static void SimplePeripheral_passcodeCb(uint8_t *pDeviceAddr,
     }
   }
 }
-#endif
 
 /*********************************************************************
  * @fn      SimplePeripheral_processPairState
@@ -1644,6 +1645,7 @@ static void SimplePeripheral_processPasscode(spPasscodeData_t *pPasscodeData)
                          B_APP_DEFAULT_PASSCODE);
 #endif
 }
+#endif
 
 /*********************************************************************
  * @fn      SimplePeripheral_connEvtCB
