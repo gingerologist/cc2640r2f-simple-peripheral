@@ -134,7 +134,7 @@
 // Application events
 #define SP_STATE_CHANGE_EVT                  0
 #define SP_CHAR_CHANGE_EVT                   1
-
+#define SP_CHAR_CFG_CHANGE_EVT               2
 #define SP_ADV_EVT                           3
 #define SP_PAIR_STATE_EVT                    4
 #define SP_PASSCODE_EVT                      5
@@ -179,6 +179,14 @@ typedef struct
   uint8_t event;                // event type
   void    *pData;               // pointer to message
 } spEvt_t;
+
+// Struct for messages about characteristic data
+typedef struct
+{
+  uint16_t dataLen; //
+  uint8_t paramID; // Index of the characteristic
+  uint8_t data[]; // Flexible array member, extended to malloc - sizeof(.)
+} spCharacteristicData_t;
 
 // Container to store passcode data when passing from gapbondmgr callback
 // to app event. See the pfnPairStateCB_t documentation from the gapbondmgr.h
@@ -246,8 +254,8 @@ typedef struct
  * GLOBAL VARIABLES
  */
 
-// Display Interface
-Display_Handle dispHandle = NULL;
+// Entity ID globally used to check for source and/or destination of messages
+ICall_EntityID selfEntity;
 
 // Task configuration
 Task_Struct spTask;
@@ -261,9 +269,6 @@ uint8_t spTaskStack[SP_TASK_STACK_SIZE];
 /*********************************************************************
  * LOCAL VARIABLES
  */
-
-// Entity ID globally used to check for source and/or destination of messages
-static ICall_EntityID selfEntity;
 
 // Event globally used to post local events and pend on system and
 // local events.
@@ -378,7 +383,8 @@ static void SimplePeripheral_processGapMessage(gapEventHdr_t *pMsg);
 static void SimplePeripheral_advCallback(uint32_t event, void *pBuf, uintptr_t arg);
 static void SimplePeripheral_processAdvEvent(spGapAdvEventData_t *pEventData);
 static void SimplePeripheral_processAppMsg(spEvt_t *pMsg);
-static void SimplePeripheral_processCharValueChangeEvt(uint8_t paramId);
+static void SimplePeripheral_processCharValChangeEvt(spCharacteristicData_t* pCharData);
+static void SimplePeripheral_processCharCfgChangeEvt(spCharacteristicData_t* pCharData);
 static void SimplePeripheral_performPeriodicTask(void);
 #if defined(BLE_V42_FEATURES) && (BLE_V42_FEATURES & PRIVACY_1_2_CFG)
 static void SimplePeripheral_updateRPA(void);
@@ -393,7 +399,14 @@ static void SimplePeripheral_pairStateCb(uint16_t connHandle, uint8_t state,
 static void SimplePeripheral_processPairState(spPairStateData_t *pPairState);
 static void SimplePeripheral_processPasscode(spPasscodeData_t *pPasscodeData);
 #endif
-static void SimplePeripheral_charValueChangeCB(uint8_t paramId);
+static void SimplePeripheral_charValChangeCB(uint16_t connHandle,
+                                             uint8_t paramID,
+                                             uint16_t len,
+                                             uint8_t *pValue);
+static void SimplePeripheral_charCfgChangeCB(uint16_t connHandle,
+                                             uint8_t paramID,
+                                             uint16_t len,
+                                             uint8_t *pValue);
 static status_t SimplePeripheral_enqueueMsg(uint8_t event, void *pData);
 static void SimplePeripheral_processCmdCompleteEvt(hciEvt_CmdComplete_t *pMsg);
 static void SimplePeripheral_initPHYRSSIArray(void);
@@ -436,7 +449,8 @@ static gapBondCBs_t SimplePeripheral_BondMgrCBs =
 // Simple GATT Profile Callbacks
 static simpleProfileCBs_t SimplePeripheral_simpleProfileCBs =
 {
-  SimplePeripheral_charValueChangeCB // Simple GATT Characteristic value change callback
+  .pfnValChangeCb = SimplePeripheral_charValChangeCB, // Simple GATT Characteristic val change callback
+  .pfnCfgChangeCb = SimplePeripheral_charCfgChangeCB, // Simple GATT Characteristic cfg change callback
 };
 
 /*********************************************************************
@@ -947,7 +961,11 @@ static void SimplePeripheral_processAppMsg(spEvt_t *pMsg)
   switch (pMsg->event)
   {
     case SP_CHAR_CHANGE_EVT:
-      SimplePeripheral_processCharValueChangeEvt(*(uint8_t*)(pMsg->pData));
+      SimplePeripheral_processCharValChangeEvt((spCharacteristicData_t*)(pMsg->pData));
+      break;
+
+    case SP_CHAR_CFG_CHANGE_EVT:
+      SimplePeripheral_processCharCfgChangeEvt((spCharacteristicData_t*)(pMsg->pData));
       break;
 
     case SP_ADV_EVT:
@@ -1209,7 +1227,7 @@ static void SimplePeripheral_processGapMessage(gapEventHdr_t *pMsg)
 }
 
 /*********************************************************************
- * @fn      SimplePeripheral_charValueChangeCB
+ * @fn      SimplePeripheral_charValChangeCB
  *
  * @brief   Callback from Simple Profile indicating a characteristic
  *          value change.
@@ -1218,17 +1236,25 @@ static void SimplePeripheral_processGapMessage(gapEventHdr_t *pMsg)
  *
  * @return  None.
  */
-static void SimplePeripheral_charValueChangeCB(uint8_t paramId)
+static void SimplePeripheral_charValChangeCB(uint16_t connHandle,
+                                             uint8_t paramID,
+                                             uint16_t len,
+                                             uint8_t *pValue)
 {
-  uint8_t *pValue = ICall_malloc(sizeof(uint8_t));
+  Log_info1("Char Val Change, %d.", paramID);
 
-  if (pValue)
+  spCharacteristicData_t *pValChange =
+    ICall_malloc(sizeof(spCharacteristicData_t) + len);
+
+  if (pValChange != NULL)
   {
-    *pValue = paramId;
+    pValChange->paramID = paramID;
+    memcpy(pValChange->data, pValue, len);
+    pValChange->dataLen = len;
 
-    if (SimplePeripheral_enqueueMsg(SP_CHAR_CHANGE_EVT, pValue) != SUCCESS)
+    if (SimplePeripheral_enqueueMsg(SP_CHAR_CHANGE_EVT, pValChange) != SUCCESS)
     {
-      ICall_free(pValue);
+      ICall_free(pValChange);
     }
   }
 }
@@ -1241,26 +1267,86 @@ static void SimplePeripheral_charValueChangeCB(uint8_t paramId)
  *
  * @param   paramID - parameter ID of the value that was changed.
  */
-static void SimplePeripheral_processCharValueChangeEvt(uint8_t paramId)
+static void SimplePeripheral_processCharValChangeEvt(spCharacteristicData_t* pCharData)
 {
-  uint8_t newValue;
-
-  switch(paramId)
+  switch(pCharData->paramID)
   {
     case SIMPLEPROFILE_CHAR1:
-      SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR1, &newValue);
-
-      Log_info1("Char 1: %d", (uint16_t)newValue);
+      Log_info1("Char 1: %d", pCharData->data[0]);
       break;
 
     case SIMPLEPROFILE_CHAR3:
-      SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR3, &newValue);
-
-      Log_info1("Char 3: %d", (uint16_t)newValue);
+      Log_info1("Char 3: %d", pCharData->data[0]);
       break;
 
     default:
       // should not reach here!
+      break;
+  }
+}
+
+/*********************************************************************
+ * @fn      SimplePeripheral_charValueChangeCB
+ *
+ * @brief   Callback from Simple Profile indicating a characteristic
+ *          value change.
+ *
+ * @param   paramId - parameter Id of the value that was changed.
+ *
+ * @return  None.
+ */
+static void SimplePeripheral_charCfgChangeCB(uint16_t connHandle,
+                                             uint8_t paramID,
+                                             uint16_t len,
+                                             uint8_t *pValue)
+{
+  Log_info1("Char Cfg Change, %d", paramID);
+
+  spCharacteristicData_t *pValChange =
+      ICall_malloc(sizeof(spCharacteristicData_t) + len);
+
+  if(pValChange != NULL)
+  {
+      pValChange->paramID = paramID;
+      memcpy(pValChange->data, pValue, len);
+      pValChange->dataLen = len;
+
+      if(SimplePeripheral_enqueueMsg(SP_CHAR_CFG_CHANGE_EVT, pValChange) != SUCCESS)
+      {
+        ICall_free(pValChange);
+      }
+  }
+}
+
+/*********************************************************************
+ * @fn      SimplePeripheral_processCharCfgChangeEvt
+ *
+ * @brief   Process a pending Simple Profile characteristic value change
+ *          event.
+ *
+ * @param   paramID - parameter ID of the value that was changed.
+ */
+static void SimplePeripheral_processCharCfgChangeEvt(spCharacteristicData_t* pCharData)
+{
+  uint16_t configValue = *(uint16_t *)pCharData->data;
+  switch(pCharData->paramID)
+  {
+    case SIMPLEPROFILE_CHAR4:
+      if (configValue == GATT_CFG_NO_OPERATION)
+      {
+        Log_info0("Char 4 indi/noti off");
+      }
+      else if (configValue == GATT_CLIENT_CFG_NOTIFY)
+      {
+        Log_info0("Char 4 noti on");
+      }
+      else if (configValue == GATT_CLIENT_CFG_INDICATE)
+      {
+        Log_info0("Char 4 indi on");
+      }
+      break;
+
+    default:
       break;
   }
 }

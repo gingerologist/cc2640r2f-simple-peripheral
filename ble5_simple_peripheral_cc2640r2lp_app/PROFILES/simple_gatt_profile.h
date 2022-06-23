@@ -68,21 +68,30 @@ extern "C"
 #define SIMPLEPROFILE_CHAR4                   3  // RW uint8 - Profile Characteristic 4 value
 #define SIMPLEPROFILE_CHAR5                   4  // RW uint8 - Profile Characteristic 4 value
 
+// Simple Profile 128-bit UUID base: 0e66XXXX-e1d4-43c1-bae6-226863149132
+#define SIMPLEPROFILE_BASE_UUID_128( uuid ) \
+    0x32, 0x91, 0x14, 0x63, 0x68, 0x22, 0xe6, 0xba, \
+    0xc1, 0x43, 0xd4, 0xe1, LO_UINT16( uuid ), HI_UINT16( uuid ), 0x66, 0x0e
+
 // Simple Profile Service UUID
 #define SIMPLEPROFILE_SERV_UUID               0xFFF0
 
 // Key Pressed UUID
-#define SIMPLEPROFILE_CHAR1_UUID            0xFFF1
-#define SIMPLEPROFILE_CHAR2_UUID            0xFFF2
-#define SIMPLEPROFILE_CHAR3_UUID            0xFFF3
-#define SIMPLEPROFILE_CHAR4_UUID            0xFFF4
-#define SIMPLEPROFILE_CHAR5_UUID            0xFFF5
+#define SIMPLEPROFILE_CHAR1_UUID              0xFFF1
+#define SIMPLEPROFILE_CHAR2_UUID              0xFFF2
+#define SIMPLEPROFILE_CHAR3_UUID              0xFFF3
+#define SIMPLEPROFILE_CHAR4_UUID              0xFFF4
+#define SIMPLEPROFILE_CHAR5_UUID              0xFFF5
 
 // Simple Keys Profile Services bit fields
-#define SIMPLEPROFILE_SERVICE               0x00000001
+#define SIMPLEPROFILE_SERVICE                 0x00000001
 
-// Length of Characteristic 5 in bytes
-#define SIMPLEPROFILE_CHAR5_LEN           5
+// Length of Characteristics in bytes
+#define SIMPLEPROFILE_CHAR1_LEN               5
+#define SIMPLEPROFILE_CHAR2_LEN               5
+#define SIMPLEPROFILE_CHAR3_LEN               5
+#define SIMPLEPROFILE_CHAR4_LEN               5
+#define SIMPLEPROFILE_CHAR5_LEN               5
 
 /*********************************************************************
  * TYPEDEFS
@@ -98,14 +107,14 @@ extern "C"
  */
 
 // Callback when a characteristic value has changed
-typedef void (*simpleProfileChange_t)( uint8 paramID );
+typedef void (*simpleProfileChange_t)(uint16_t connHandle, uint8_t paramID,
+                                      uint16_t len, uint8_t *pValue);
 
 typedef struct
 {
-  simpleProfileChange_t        pfnSimpleProfileChange;  // Called when characteristic value changes
+  simpleProfileChange_t pfnValChangeCb;       // Called when characteristic value changes
+  simpleProfileChange_t pfnCfgChangeCb;       // Called when characteristic CCCD changes
 } simpleProfileCBs_t;
-
-
 
 /*********************************************************************
  * API FUNCTIONS
