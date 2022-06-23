@@ -357,7 +357,6 @@ static uint8_t scanRspData[] =
 
 // Advertising handles
 static uint8 advHandleLegacy;
-static uint8 advHandleLongRange;
 
 // Address mode
 static GAP_Addr_Modes_t addrMode = DEFAULT_ADDRESS_MODE;
@@ -1077,29 +1076,6 @@ static void SimplePeripheral_processGapMessage(gapEventHdr_t *pMsg)
         status = GapAdv_enable(advHandleLegacy, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
         SIMPLEPERIPHERAL_ASSERT(status == SUCCESS);
 
-        // Use long range params to create long range set #2
-        GapAdv_params_t advParamLongRange = GAPADV_PARAMS_AE_LONG_RANGE_CONN;
-
-        // Create Advertisement set #2 and assign handle
-        status = GapAdv_create(&SimplePeripheral_advCallback, &advParamLongRange,
-                               &advHandleLongRange);
-        SIMPLEPERIPHERAL_ASSERT(status == SUCCESS);
-
-        // Load advertising data for set #2 that is statically allocated by the app
-        status = GapAdv_loadByHandle(advHandleLongRange, GAP_ADV_DATA_TYPE_ADV,
-                                     sizeof(advertData), advertData);
-        SIMPLEPERIPHERAL_ASSERT(status == SUCCESS);
-
-        // Set event mask for set #2
-        status = GapAdv_setEventMask(advHandleLongRange,
-                                     GAP_ADV_EVT_MASK_START_AFTER_ENABLE |
-                                     GAP_ADV_EVT_MASK_END_AFTER_DISABLE |
-                                     GAP_ADV_EVT_MASK_SET_TERMINATED);
-
-        // Enable long range advertising for set #2
-        status = GapAdv_enable(advHandleLongRange, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
-        SIMPLEPERIPHERAL_ASSERT(status == SUCCESS);
-
         // Display device address
         if (addrMode <= ADDRMODE_RANDOM)
         {
@@ -1150,12 +1126,10 @@ static void SimplePeripheral_processGapMessage(gapEventHdr_t *pMsg)
       {
         // Start advertising since there is room for more connections
         GapAdv_enable(advHandleLegacy, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
-        GapAdv_enable(advHandleLongRange, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
       }
       else
       {
         // Stop advertising since there is no room for more connections
-        GapAdv_disable(advHandleLongRange);
         GapAdv_disable(advHandleLegacy);
       }
 
@@ -1183,7 +1157,6 @@ static void SimplePeripheral_processGapMessage(gapEventHdr_t *pMsg)
 
       // Start advertising since there is room for more connections
       GapAdv_enable(advHandleLegacy, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
-      GapAdv_enable(advHandleLongRange, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
       break;
     }
 
