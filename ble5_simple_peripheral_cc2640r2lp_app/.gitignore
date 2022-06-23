@@ -7,7 +7,9 @@ FlashROM_StackLibrary/
 # when this generated?
 TOOLS/src/
 
-# .config
+# seemingly generated for xgconf
+.config
+
 # .launches
 
 # for xdc tools
